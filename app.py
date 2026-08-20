@@ -2,8 +2,8 @@ import re
 import requests
 import streamlit as st
 
-# Clé API xAI / Grok intégrée
-GROK_API_KEY = "Gsk_nALGqqF9YTlFwYHmiv60WGdyb3FYHH1TSE3xR7ZrGW2x5LfGeM0t"
+# Clé API Groq configurée
+GROQ_API_KEY = "Gsk_nALGqqF9YTlFwYHmiv60WGdyb3FYHH1TSE3xR7ZrGW2x5LfGeM0t"
 
 def romain_vers_int(romain):
     valeurs = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100}
@@ -14,22 +14,22 @@ def romain_vers_int(romain):
         prev = val
     return total
 
-def interroger_grok(prompt):
-    url = "https://api.xai.com/v1/chat/completions"
+def interroger_groq(prompt):
+    url = "https://api.groq.com/openai/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {GROK_API_KEY}"
+        "Authorization": f"Bearer {GROQ_API_KEY}"
     }
     payload = {
         "messages": [
-            {"role": "system", "content": "Tu es Nexa AI, un assistant intelligent et précis."},
+            {"role": "system", "content": "Tu es Nexa AI. Tu réponds de manière intelligente, naturelle, vivante et fluide, exactement comme Gemini."},
             {"role": "user", "content": prompt}
         ],
-        "model": "grok-beta",
-        "stream": False
+        "model": "llama-3.3-70b-versatile",
+        "temperature": 0.7
     }
     try:
-        response = requests.post(url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload, timeout=10)
         if response.status_code == 200:
             return response.json()['choices'][0]['message']['content']
         return f"Erreur API ({response.status_code}) : {response.text}"
@@ -63,7 +63,7 @@ def lexer(code):
                 pos = match.end()
                 break
         if not match:
-            raise SyntaxError(f"Caractère inconnu à la position {pos} : {code[pos]}")
+            raise SyntaxError(f"Caractère inconnu : {code[pos]}")
     return tokens
 
 class InterpreteurK:
@@ -101,7 +101,7 @@ class InterpreteurK:
                 prompt = val_expr[1:-1] if type_expr == 'TEXTE' else str(self.variables.get(val_expr, ""))
                 
                 self.outputs.append(("user", prompt))
-                reponse = interroger_grok(prompt)
+                reponse = interroger_groq(prompt)
                 self.outputs.append(("ai", reponse))
                 
                 while tokens[i][0] != 'POINT_VIRGULE':
@@ -120,37 +120,74 @@ class InterpreteurK:
             index += 1
         return total
 
-# Interface Web Streamlit
-st.set_page_config(page_title="Language K & Nexa AI", page_icon="🤖")
+# --- DESIGN STREAMLIT ---
+st.set_page_config(page_title="Nexa AI Studio", page_icon="✨", layout="centered")
 
-st.title("🤖 Studio Language K — Nexa AI")
-st.markdown("Testez votre IA **Nexa** directement dans votre navigateur.")
+# CSS personnalisation boutons et interface
+st.markdown("""
+<style>
+    .stButton>button {
+        background: linear-gradient(90deg, #4F46E5 0%, #7C3AED 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 10px 24px;
+        font-weight: bold;
+        border: none;
+        box-shadow: 0 4px 14px 0 rgba(124, 58, 237, 0.39);
+    }
+    .stButton>button:hover {
+        background: linear-gradient(90deg, #4338CA 0%, #6D28D9 100%);
+        color: white;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-code_exemple = """{
-    NEXA "Initialisation de Nexa AI...";
+st.title("✨ Nexa AI Studio — Language K")
+
+tabs = st.tabs(["💬 Chatbot Direct", "📜 Éditeur Language K"])
+
+# TAB 1: Chatbot interactif avec Micro + Texte
+with tabs[0]:
+    st.subheader("Discutez avec Nexa AI")
+    
+    # Entrée vocale (Audio)
+    audio_val = st.audio_input("🎙️ Appuyez pour parler à Nexa")
+    
+    # Entrée Chat classique
+    user_prompt = st.chat_input("Écrivez votre message à Nexa...")
+    
+    if user_prompt:
+        st.chat_message("user").write(user_prompt)
+        with st.spinner("Nexa réfléchit..."):
+            reponse = interroger_groq(user_prompt)
+            st.chat_message("assistant", avatar="✨").write(reponse)
+
+# TAB 2: Exécution de code K
+with tabs[1]:
+    st.subheader("Console Language K")
+    code_exemple = """{
+    NEXA "Système prêt.";
     VAR valeur = X + V;
     NEXA valeur;
     
-    ASK_NEXA "Bonjour Nexa ! Présente-toi brièvement.";
+    ASK_NEXA "Présente-toi avec style et énergie !";
 }"""
-
-code_input = st.text_area("Éditeur Language K :", value=code_exemple, height=200)
-
-if st.button("🚀 Exécuter le code", type="primary"):
-    try:
-        tokens = lexer(code_input)
-        interpreteur = InterpreteurK()
-        interpreteur.executer(tokens)
-        
-        st.subheader("Résultats :")
-        for type_msg, message in interpreteur.outputs:
-            if type_msg == "system":
-                st.code(message)
-            elif type_msg == "user":
-                st.write(f"**🗣️ Question :** {message}")
-            elif type_msg == "ai":
-                st.success(f"**🤖 Nexa AI :** {message}")
-                
-    except Exception as e:
-        st.error(f"Erreur de syntaxe : {e}")
-               
+    
+    code_input = st.text_area("Code K :", value=code_exemple, height=200)
+    
+    if st.button("🚀 Exécuter le code Language K"):
+        try:
+            tokens = lexer(code_input)
+            interpreteur = InterpreteurK()
+            interpreteur.executer(tokens)
+            
+            for type_msg, message in interpreteur.outputs:
+                if type_msg == "system":
+                    st.code(message)
+                elif type_msg == "user":
+                    st.write(f"**🗣️ Question :** {message}")
+                elif type_msg == "ai":
+                    st.success(f"**✨ Nexa AI :**\n\n{message}")
+        except Exception as e:
+            st.error(f"Erreur : {e}")
+                          
